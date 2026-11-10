@@ -1,28 +1,102 @@
 name: release
 
-# Push a tag made by `npm version <patch|minor|major>` (v1.2.3) to publish a GitHub release
-# with the claude.ai upload zip attached.
+# Two ways to release:
+#   - Actions → release → Run workflow, then pick patch / minor / major (or "current" to release the
+#     version already in package.json). The workflow bumps every manifest, dates CHANGELOG.md,
+#     commits, tags, and pushes to main.
+#   - Push a tag vX.Y.Z yourself. It must match package.json.
+# Either way, it publishes a GitHub release with swarm-skill.zip, swarm-plugin.zip, SHA256SUMS and
+# build provenance. It also publishes to npm (for `pi install npm:swarm-skill`) when the repository
+# variable NPM_PUBLISH is "true" and the NPM_TOKEN secret is set (or npm trusted publishing is set up).
 on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump
+        type: choice
+        options: [patch, minor, major, current]
+        default: patch
   push:
-    tags: ["v*"]
+    tags: ["v*.*.*"]
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      DISABLE_TELEMETRY: "1"
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event_name == 'workflow_dispatch' && 'main' || github.ref }}
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
+          registry-url: https://registry.npmjs.org
+      - run: command -v sqlite3 || (sudo apt-get update -qq && sudo apt-get install -y -qq sqlite3)
       - run: npm ci
-      - run: npm run check
-      - name: Tag matches every manifest
-        run: test "v$(node -p 'require("./package.json").version')" = "$GITHUB_REF_NAME"
+
+      - name: Bump version, date the changelog, commit and tag
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ "${{ inputs.bump }}" = current ]; then
+            node tools/changelog.mjs notes >/dev/null
+            git tag -a "v$(node -p 'require("./package.json").version')" -m "v$(node -p 'require("./package.json").version')"
+          else
+            npm version "${{ inputs.bump }}" -m "Release v%s"
+          fi
+
+      - name: Version
+        id: v
+        run: |
+          V=$(node -p 'require("./package.json").version')
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          TAG=$(git describe --tags --exact-match HEAD)
+          test "$TAG" = "v$V" || { echo "::error::tag $TAG does not match package.json $V"; exit 1; }
+
+      - name: Check, test and build
+        run: npm run check
+      - name: Claude Code validates the plugin and the zip
+        run: |
+          npx -y @anthropic-ai/claude-code@latest plugin validate .
+          npx -y @anthropic-ai/claude-code@latest plugin validate dist/swarm-plugin
+
+      - name: Push the release commit and tag
+        if: github.event_name == 'workflow_dispatch'
+        run: git push origin HEAD:main --follow-tags
+
+      - name: Build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: |
+            dist/swarm-skill.zip
+            dist/swarm-plugin.zip
+
+      - name: Release notes
+        run: node tools/release-notes.mjs > "$RUNNER_TEMP/notes.md"
+
       - name: GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/*.zip --title "$GITHUB_REF_NAME" --generate-notes
+          V: ${{ steps.v.outputs.version }}
+        run: |
+          gh release create "v$V" dist/swarm-skill.zip dist/swarm-plugin.zip dist/SHA256SUMS \
+            --title "v$V" --notes-file "$RUNNER_TEMP/notes.md" --verify-tag --latest
+
+      - name: npm
+        if: vars.NPM_PUBLISH == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --provenance --access public

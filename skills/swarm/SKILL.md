@@ -2,12 +2,12 @@
 name: swarm
 description: "Lead a team of cheap pi workers (OpenRouter models) on a large task that splits into parts: you plan, assign and judge, workers do the bulk in their own git worktrees, and a shared SQLite database is the only channel between you. Installs what it needs, checks the OpenRouter key and budget before anything starts, keeps credentials away from workers, audits what they ran, hands each worker only the skills its task needs, and merges only work that builds and passes tests. Use for big, splittable work (many files, many tests, a migration) where one strong agent doing it all costs too much. Run it only when the user asks for a swarm by name: it starts paid workers that spend on their own."
 compatibility: "Needs only an OpenRouter API key (in the environment, or as a secret the environment's proxy adds). The agent installs everything else it finds missing (Node.js, curl, git, sqlite3, the pi coding agent). Network hosts it uses are listed in SKILL.md."
+license: MIT
 disable-model-invocation: true
 allowed-tools: Bash Read Write Edit Grep Glob
 metadata:
   version: "1.0.0"
   repository: "https://github.com/marcopesani/swarm-skill"
-  source: "https://github.com/bitrefill/devex/tree/main/skills/swarm"
 ---
 
 # Swarm
@@ -56,9 +56,10 @@ Hosts the setup and the run reach, for an environment with a network allowlist:
 
 Workers start with pi's startup network calls turned off, so while they work
 they need `openrouter.ai` only, plus whatever the target repo's tests fetch.
-The repo's own setup adds hosts: for Bitrefill's backend, `github.com` (private
-submodules), `registry.npmjs.org` (pnpm), `fastdl.mongodb.org` (the test
-database binary) and, for the live stack, `registry-1.docker.io` and `ghcr.io`.
+The repo's own setup adds hosts: its git host (private submodules), its package
+registry, whatever its tests download (a test database binary, browsers) and,
+if it runs containers, their registries. Read them off the repo's setup docs or
+CI config before you start; `references/worktree-setup.md` has a worked example.
 
 ## 1. Setup: check before anything costs money
 
@@ -158,19 +159,24 @@ A new worktree holds only tracked files: no submodules, no dependencies, no
 caches. Set it up now, in your own shell, so the worker never needs install
 credentials or network. Workers also inherit your `PATH`: put the repo's Node
 version first (its `.nvmrc`) before you spawn, or their builds and tests run on
-the wrong one. For Bitrefill's backend, with your own checkout already set up by
-local-dev step 1 (measured: 6 s per worker, no downloads, since pnpm hard-links
-from its store):
+the wrong one.
+
+Set up your own checkout first, then reuse its caches so each worktree installs
+from disk, not the network. Run the repo's own install with its lockfile:
 
 ```bash
-cd $SW/worktrees/w1 && git submodule update --init --depth 50 \
-  && MONGOMS_DISABLE_POSTINSTALL=1 npx --yes "$(node -p 'require("./package.json").packageManager')" install --frozen-lockfile --prefer-offline \
-  && mkdir -p node_modules/.cache/mongodb-memory-server \
-  && ln -f <backend>/node_modules/.cache/mongodb-memory-server/mongod-* node_modules/.cache/mongodb-memory-server/
+cd $SW/worktrees/w1 && git submodule update --init --depth 50   # if it has submodules
+pnpm install --frozen-lockfile --prefer-offline    # pnpm hard-links from its store: seconds
+npm ci --prefer-offline                            # npm
+uv sync --frozen                                   # Python with uv
+cargo fetch --locked                               # Rust (target/ is per worktree)
 ```
 
-The last two parts matter: without them each worker downloads two test
-database binaries (220 MB each), one during install and one on its first test.
+Then run one quick test in the worktree yourself. If it downloads something
+(a test database binary, a browser), copy or hard-link that cache from your
+checkout into the worktree, or every worker downloads it again.
+`references/worktree-setup.md` walks through a full example: a pnpm monorepo
+with private submodules and an in-memory MongoDB, at 6 s per worker.
 
 Then start the worker, with the skill folders `swarm skills` printed:
 
@@ -236,33 +242,31 @@ pass" is a claim, not proof. Read the diff for changes outside the task too
 (a test weakened, a check removed, a file the task did not name). Send rejected
 work back with the reason as a new subtask. Only you merge and push.
 
-## With spec, local-dev and signoff
+## Lead-only work: specs, the live app, the final review
 
-These three skills run in your session, never in a worker: local-dev needs
-Docker (root on the machine) and owns one stack per machine, and signoff needs
-subagents, which pi does not have. `swarm skills` refuses both for workers.
+Some work stays in your session, never in a worker: anything that needs Docker
+or root, owns a resource there is one of per machine (a dev stack on fixed
+ports), or needs subagents, which pi does not have. `swarm skills` refuses such
+skills for workers.
 
-- **Spec as the plan.** When `.signoff/specs/<name>.md` exists, or the work is
-  big enough to write one first with `/bitrefill:spec`, make each acceptance
-  criterion a top-level subtask with its id in the title. Signoff later checks
-  the same criteria, so the plan and the review share one list.
-- **Unit and integration tests run in the workers.** The backend's tests start
-  their own in-memory Mongo on a random port, so workers test in parallel, even
-  next to a running local-dev stack (measured: two checkouts, same test file, at
-  the same time, both green).
-- **The live stack is one per machine.** local-dev binds fixed ports
-  (3002, 27018, 8200…), uses fixed container names, and its seed and resets
-  rewrite shared data; its verify step also requires that port 3002 is served
-  by the checkout under test. So workers never start it. A worker whose task
-  needs the running app marks the subtask `needs-live` and says what to check.
-  You run those checks one at a time, after merging, on your own checkout:
-  restart the backend there ("Restart one app" in local-dev), reset between
-  checks, and log the result in `landed`.
-- **Signoff once, at the end, on the merged branch.** An attestation binds to
-  the head commit, so one per worker branch would go stale at the next merge.
-  After the last merge, run `/bitrefill:signoff`. Turn its findings into
-  subtasks, let workers fix them, merge, and run signoff's fix round on the new
-  head. Workers never touch `.signoff/`; it stays uncommitted in your checkout.
+- **A spec is the plan.** When the repo has a spec or acceptance criteria for
+  the work, or the work is big enough to write one first, make each criterion a
+  top-level subtask with its id in the title. The final review then checks the
+  same list.
+- **Unit and integration tests run in the workers**, as long as each run is
+  isolated: random ports, temp directories, in-memory or per-run databases.
+  Check that two worktrees can run the same test file at once before you scale.
+- **The live app is one per machine.** A dev stack with fixed ports, fixed
+  container names or shared seed data cannot run once per worker, so workers
+  never start it. A worker whose task needs the running app marks the subtask
+  `needs-live` and says what to check. You run those checks one at a time,
+  after merging, on your own checkout. Restart the app there, reset its data
+  between checks, and log each result in `landed`.
+- **Review once, at the end, on the merged branch.** A review or attestation
+  tied to a commit goes stale at the next merge, so run your review skill (or
+  your own full review) after the last merge. Turn its findings into subtasks,
+  let workers fix them, merge, and review the new head. Review notes stay
+  uncommitted in your checkout, and workers never touch them.
 
 ## 7. Keep the state
 

@@ -1,0 +1,40 @@
+name: Bug report
+description: Something in the skill, the script or an install does not work as described.
+labels: [bug]
+body:
+  - type: dropdown
+    id: host
+    attributes:
+      label: Agent running the lead
+      options: [Claude Code, Codex CLI, ChatGPT desktop / Codex app, pi, claude.ai / Cowork, Other]
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How you installed it
+      options: [npx skills, Claude Code marketplace, Codex marketplace, pi install, swarm-skill.zip upload, swarm-plugin.zip, By hand]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Swarm version
+      description: "metadata.version in SKILL.md"
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected
+      description: The step of SKILL.md you were on, the command, and its output. Remove API keys and secrets.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: "Output of: node --version; pi --version; git --version; sqlite3 --version; uname -a"
+      render: text

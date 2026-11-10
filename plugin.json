@@ -9,33 +9,38 @@
   },
   "homepage": "https://github.com/marcopesani/swarm-skill",
   "repository": "https://github.com/marcopesani/swarm-skill",
+  "license": "MIT",
   "keywords": [
     "agent-skills",
+    "claude-code",
+    "codex",
+    "skills",
     "swarm",
     "multi-agent",
-    "orchestration",
-    "pi",
-    "openrouter",
-    "git-worktree",
-    "sqlite"
+    "openrouter"
   ],
   "extensions": {
     "com.openai": {
+      "requires_local_executor": true,
       "interface": {
         "displayName": "Swarm",
-        "shortDescription": "Lead a team of cheap pi workers on a big, splittable task",
-        "longDescription": "Lead a team of cheap pi workers (OpenRouter models) on a big, splittable task: you plan, assign and judge, workers build in their own git worktrees, a shared SQLite database is the only channel, and only work that builds and passes tests gets merged. Checks the OpenRouter key and budget before anything starts, keeps credentials away from workers and audits what they ran.",
+        "shortDescription": "Lead a team of cheap AI agents",
+        "longDescription": "Swarm turns your agent into the lead of a team of cheap pi coding agents running OpenRouter models. The lead splits a large task (a migration, many files, many tests) into subtasks that do not collide, starts each worker in its own git worktree, coordinates through a shared SQLite database, audits every command the workers ran, and merges only work that builds and passes the tests.\n\nFor developers with big, splittable work where one strong agent doing everything costs too much.\n\nLimitations: it runs only when asked by name; it needs an OpenRouter API key with a credit limit and starts no workers under $5 left; workers run shell commands on the local machine without a sandbox, so use a disposable machine or VM; it needs a local executor (Codex CLI, the desktop app, Claude Code or pi) and does not run in web chat.",
         "developerName": "Marco Pesani",
-        "category": "Coding",
+        "category": "Developer Tools",
         "capabilities": [
           "Read",
           "Write"
         ],
         "websiteURL": "https://github.com/marcopesani/swarm-skill",
+        "supportURL": "https://github.com/marcopesani/swarm-skill/issues",
+        "privacyPolicyURL": "https://github.com/marcopesani/swarm-skill/blob/main/PRIVACY.md",
+        "termsOfServiceURL": "https://github.com/marcopesani/swarm-skill/blob/main/LICENSE",
         "defaultPrompt": [
-          "Use $swarm to split this migration across a team of pi workers."
+          "Use $swarm to split this migration across a team of pi workers.",
+          "Use $swarm to fix every failing test in this repo with a small team."
         ],
-        "brandColor": "#F97316",
+        "brandColor": "#EA580C",
         "composerIcon": "./assets/icon.png",
         "logo": "./assets/icon.png"
       }

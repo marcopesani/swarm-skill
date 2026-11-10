@@ -8,6 +8,7 @@ import { basename, join, relative } from 'node:path';
 import { validateMetadata } from 'skills-ref';
 import { parse as parseYaml } from 'yaml';
 import { HOST_FIELDS, ROOT, SPEC_FIELDS, exists, readJson, readSkill, skillDirs } from './lib.mjs';
+import { drift } from './manifests.mjs';
 
 const errors = [];
 const warnings = [];
@@ -105,8 +106,39 @@ for (const k of Object.keys(ap)) if (!AP_KEYS.has(k)) err('plugin.json', `'${k}'
 if (!/^(?!.*(?:--|\.\.))[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/.test(ap.name ?? '') || ap.name.length > 64) err('plugin.json', `invalid name '${ap.name}'`);
 if (ap.name !== claude.name) err('plugin.json', `name '${ap.name}' != .claude-plugin/plugin.json '${claude.name}'`);
 if (ap.version !== version) err('plugin.json', `version ${ap.version} != package.json ${version}`);
-const ui = ap.extensions?.['com.openai']?.interface ?? {};
-for (const k of ['composerIcon', 'logo']) checkIcon('plugin.json', ui[k]);
+
+// OpenAI listing rules (developers.openai.com/plugins/deploy/submission#manifest-fields), for both
+// the inline extension and the Codex compatibility manifest.
+const codex = readJson('.codex-plugin/plugin.json');
+for (const [w, ui, m] of [['plugin.json', ap.extensions?.['com.openai']?.interface, ap], ['.codex-plugin/plugin.json', codex.interface, codex]]) {
+    if (!ui) {
+        err(w, 'no interface object');
+        continue;
+    }
+    const max = (k, n) => typeof ui[k] === 'string' && ui[k].length > n && err(w, `interface.${k} is over ${n} chars`);
+    for (const k of ['displayName', 'shortDescription', 'longDescription', 'developerName', 'category', 'composerIcon', 'logo'])
+        if (!ui[k]) err(w, `interface.${k} is required`);
+    max('displayName', 30);
+    max('shortDescription', 30);
+    max('longDescription', 4000);
+    max('developerName', 80);
+    if (!Array.isArray(ui.capabilities) || ui.capabilities.length > 20 || ui.capabilities.some((c) => c.length > 120)) err(w, 'interface.capabilities: up to 20 strings of ≤ 120 chars');
+    const prompts = [ui.defaultPrompt ?? []].flat();
+    if (prompts.length > 3 || prompts.some((p) => p.length > 128)) err(w, 'interface.defaultPrompt: up to 3 prompts of ≤ 128 chars');
+    if (ui.brandColor && !/^#[0-9A-Fa-f]{6}$/.test(ui.brandColor)) err(w, 'interface.brandColor must be #RRGGBB');
+    for (const k of ['websiteURL', 'supportURL', 'privacyPolicyURL', 'termsOfServiceURL']) if (ui[k] && !ui[k].startsWith('https://')) err(w, `interface.${k} must be https`);
+    for (const k of ['composerIcon', 'logo']) {
+        if (ui[k] && !ui[k].startsWith('./')) err(w, `interface.${k} must start with ./`);
+        checkIcon(w, ui[k]);
+    }
+    if ((m.description ?? '').length > 4000) err(w, 'description is over 4000 chars');
+    if (!m.author?.name || m.author.name.length > 120) err(w, 'author.name is required (≤ 120 chars)');
+}
+if (codex.$schema) err('.codex-plugin/plugin.json', 'the Codex format omits $schema');
+for (const k of ['name', 'version', 'description']) if (codex[k] !== ap[k]) err('.codex-plugin/plugin.json', `${k} differs from plugin.json`);
+
+// Generated files match their source (tools/manifests.mjs, package.json).
+for (const f of drift()) err(f, 'out of date: run npm run sync');
 
 // Codex repo marketplace.
 const om = readJson('.agents/plugins/marketplace.json');
@@ -129,5 +161,5 @@ for (const n of names) if (!KEBAB.test(n)) err(`skills/${n}`, 'folder name must 
 
 for (const w of warnings) console.log(`⚠ ${w}`);
 for (const e of errors) console.log(`✘ ${e}`);
-console.log(errors.length ? `✘ ${errors.length} error(s)` : `✔ ${dirs.length} skill(s) and 4 manifests valid (version ${version})`);
+console.log(errors.length ? `✘ ${errors.length} error(s)` : `✔ ${dirs.length} skill(s) and 5 manifests valid (version ${version})`);
 process.exit(errors.length);

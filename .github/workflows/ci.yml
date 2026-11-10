@@ -4,40 +4,84 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_call:
 
 permissions:
   contents: read
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         # The skill's script needs import.meta.main: Node 22.18+ or 24.2+.
+        os: [ubuntu-latest]
         node: ["22.18", "24", "latest"]
+        include:
+          - os: macos-latest
+            node: "24"
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node }}
           cache: npm
+      - name: sqlite3 for the integration tests
+        if: runner.os == 'Linux'
+        run: command -v sqlite3 || (sudo apt-get update -qq && sudo apt-get install -y -qq sqlite3)
       - run: npm ci
       - name: Validate skill (Agent Skills spec) and manifests
         run: npm run validate
-      - name: Test the swarm workbench
+      - name: Test
         run: npm test
-      - name: Build the claude.ai / Skills API zip
+      - name: Build release assets
         run: npm run package
-      - name: Discoverable by npx skills (skills.sh)
-        env:
-          DISABLE_TELEMETRY: "1"
-        run: npx -y skills@latest add ./ --list | tee /tmp/skills.txt && grep -q swarm /tmp/skills.txt
-      - name: Claude Code plugin + marketplace validation
-        if: matrix.node == '24'
-        run: npx -y @anthropic-ai/claude-code@latest plugin validate .
-      - uses: actions/upload-artifact@v4
-        if: matrix.node == '24'
+
+  hosts:
+    name: install in real hosts
+    runs-on: ubuntu-latest
+    needs: check
+    env:
+      DISABLE_TELEMETRY: "1"
+      DO_NOT_TRACK: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          name: swarm-skill-zip
-          path: dist/*.zip
+          node-version: 24
+          cache: npm
+      - run: npm ci && npm run package
+      - name: Claude Code validates the repo plugin, its marketplace and the zip
+        run: |
+          npx -y @anthropic-ai/claude-code@latest plugin validate .
+          npx -y @anthropic-ai/claude-code@latest plugin validate dist/swarm-plugin
+      - name: Claude Code installs from the marketplace and loads the zip
+        env:
+          CLAUDE_CONFIG_DIR: ${{ runner.temp }}/claude
+        run: |
+          C="npx -y @anthropic-ai/claude-code@latest"
+          $C plugin marketplace add "$GITHUB_WORKSPACE"
+          $C plugin install swarm@swarm-skill
+          $C plugin list | tee /tmp/claude.txt && grep -q "swarm@swarm-skill" /tmp/claude.txt
+          $C --plugin-dir dist/swarm-plugin.zip plugin list | grep -q "swarm@inline"
+      - name: Codex installs from the marketplace
+        env:
+          CODEX_HOME: ${{ runner.temp }}/codex
+        run: |
+          mkdir -p "$CODEX_HOME"
+          C="npx -y @openai/codex@latest"
+          $C plugin marketplace add "$GITHUB_WORKSPACE"
+          $C plugin add swarm@swarm-skill
+          $C plugin list | tee /tmp/codex.txt && grep -q "swarm@swarm-skill *installed" /tmp/codex.txt
+          test -f "$CODEX_HOME"/plugins/cache/swarm-skill/swarm/*/skills/swarm/SKILL.md
+      - name: npx skills finds and installs the skill for every agent
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir proj && cd proj && git init -q
+          npx -y skills@latest add "$GITHUB_WORKSPACE" --skill swarm -a claude-code -a codex -a pi -y
+          test -f .agents/skills/swarm/SKILL.md && test -e .claude/skills/swarm/SKILL.md
+          node .agents/skills/swarm/scripts/swarm.mjs skills | grep -q " swarm "
+      - name: The skill zip passes the reference validator
+        working-directory: ${{ runner.temp }}
+        run: unzip -q "$GITHUB_WORKSPACE/dist/swarm-skill.zip" -d skillzip && npx -y skills-ref validate skillzip/swarm

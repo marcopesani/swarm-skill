@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
   "name": "swarm-skill",
-  "description": "The swarm skill: one lead agent, a team of cheap pi workers.",
+  "description": "Swarm: one lead agent, a team of cheap pi workers.",
   "owner": {
     "name": "Marco Pesani",
     "url": "https://github.com/marcopesani"
@@ -14,13 +14,12 @@
       "category": "development",
       "keywords": [
         "agent-skills",
+        "claude-code",
+        "codex",
+        "skills",
         "swarm",
         "multi-agent",
-        "orchestration",
-        "pi",
-        "openrouter",
-        "git-worktree",
-        "sqlite"
+        "openrouter"
       ]
     }
   ]
