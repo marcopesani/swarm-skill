@@ -1,0 +1,5 @@
+{
+  "name": "swarm-skill",
+  "version": "1.0.0",
+  "description": "Coordinate parallel work across Claude Code subagents."
+}

@@ -1,0 +1,7 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "swarm-skill",
+  "version": "1.0.0",
+  "description": "Coordinate parallel work across coding agents.",
+  "skills": "./skills/"
+}
