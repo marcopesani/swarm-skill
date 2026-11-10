@@ -1,0 +1,52 @@
+{
+  "name": "swarm-skill",
+  "version": "1.0.0",
+  "description": "Agent skill: lead a team of cheap pi workers (OpenRouter models) on a big, splittable task. Works with Claude Code, Codex, pi and any Agent Skills host.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "author": "Marco Pesani (https://github.com/marcopesani)",
+  "homepage": "https://github.com/marcopesani/swarm-skill#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/marcopesani/swarm-skill.git"
+  },
+  "bugs": "https://github.com/marcopesani/swarm-skill/issues",
+  "keywords": [
+    "pi-package",
+    "agent-skills",
+    "claude-code",
+    "codex",
+    "skills",
+    "swarm",
+    "multi-agent",
+    "openrouter"
+  ],
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "files": [
+    "skills/",
+    "assets/",
+    "plugin.json",
+    ".claude-plugin/",
+    ".agents/plugins/",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "pi": {
+    "skills": [
+      "./skills"
+    ]
+  },
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.mjs\"",
+    "validate": "node tools/validate.mjs",
+    "package": "node tools/package.mjs",
+    "check": "npm run validate && npm test && npm run package",
+    "version": "node tools/sync-version.mjs && git add .claude-plugin/plugin.json plugin.json skills/*/SKILL.md"
+  },
+  "devDependencies": {
+    "skills-ref": "0.1.5",
+    "yaml": "^2.9.1"
+  }
+}

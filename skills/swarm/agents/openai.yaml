@@ -1,0 +1,14 @@
+# Codex / ChatGPT skill metadata (https://developers.openai.com/codex/skills#optional-metadata).
+# Other agents ignore this file.
+interface:
+  display_name: "Swarm"
+  short_description: "Lead a team of cheap pi workers on a big, splittable task"
+  icon_small: "./assets/icon.png"
+  icon_large: "./assets/icon.png"
+  brand_color: "#F97316"
+  default_prompt: "Use $swarm to split this task across a team of pi workers, then review and merge their work."
+
+# Swarm starts paid workers that spend on their own: run it only when the user
+# asks for it by name ($swarm), never on an implicit match.
+policy:
+  allow_implicit_invocation: false

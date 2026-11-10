@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "swarm",
+  "displayName": "Swarm",
+  "version": "1.0.0",
+  "description": "Lead a team of cheap pi workers (OpenRouter models) on a big, splittable task: you plan, assign and judge, workers build in their own git worktrees, a shared SQLite database is the only channel, and only work that builds and passes tests gets merged.",
+  "author": {
+    "name": "Marco Pesani",
+    "url": "https://github.com/marcopesani"
+  },
+  "homepage": "https://github.com/marcopesani/swarm-skill",
+  "repository": "https://github.com/marcopesani/swarm-skill",
+  "keywords": [
+    "agent-skills",
+    "swarm",
+    "multi-agent",
+    "orchestration",
+    "pi",
+    "openrouter",
+    "git-worktree",
+    "sqlite"
+  ],
+  "icon": "./assets/icon.png"
+}

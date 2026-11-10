@@ -1,0 +1,44 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "swarm",
+  "version": "1.0.0",
+  "description": "Lead a team of cheap pi workers (OpenRouter models) on a big, splittable task: you plan, assign and judge, workers build in their own git worktrees, a shared SQLite database is the only channel, and only work that builds and passes tests gets merged.",
+  "author": {
+    "name": "Marco Pesani",
+    "url": "https://github.com/marcopesani"
+  },
+  "homepage": "https://github.com/marcopesani/swarm-skill",
+  "repository": "https://github.com/marcopesani/swarm-skill",
+  "keywords": [
+    "agent-skills",
+    "swarm",
+    "multi-agent",
+    "orchestration",
+    "pi",
+    "openrouter",
+    "git-worktree",
+    "sqlite"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Swarm",
+        "shortDescription": "Lead a team of cheap pi workers on a big, splittable task",
+        "longDescription": "Lead a team of cheap pi workers (OpenRouter models) on a big, splittable task: you plan, assign and judge, workers build in their own git worktrees, a shared SQLite database is the only channel, and only work that builds and passes tests gets merged. Checks the OpenRouter key and budget before anything starts, keeps credentials away from workers and audits what they ran.",
+        "developerName": "Marco Pesani",
+        "category": "Coding",
+        "capabilities": [
+          "Read",
+          "Write"
+        ],
+        "websiteURL": "https://github.com/marcopesani/swarm-skill",
+        "defaultPrompt": [
+          "Use $swarm to split this migration across a team of pi workers."
+        ],
+        "brandColor": "#F97316",
+        "composerIcon": "./assets/icon.png",
+        "logo": "./assets/icon.png"
+      }
+    }
+  }
+}

@@ -1,0 +1,43 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The skill's script needs import.meta.main: Node 22.18+ or 24.2+.
+        node: ["22.18", "24", "latest"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - name: Validate skill (Agent Skills spec) and manifests
+        run: npm run validate
+      - name: Test the swarm workbench
+        run: npm test
+      - name: Build the claude.ai / Skills API zip
+        run: npm run package
+      - name: Discoverable by npx skills (skills.sh)
+        env:
+          DISABLE_TELEMETRY: "1"
+        run: npx -y skills@latest add ./ --list | tee /tmp/skills.txt && grep -q swarm /tmp/skills.txt
+      - name: Claude Code plugin + marketplace validation
+        if: matrix.node == '24'
+        run: npx -y @anthropic-ai/claude-code@latest plugin validate .
+      - uses: actions/upload-artifact@v4
+        if: matrix.node == '24'
+        with:
+          name: swarm-skill-zip
+          path: dist/*.zip
